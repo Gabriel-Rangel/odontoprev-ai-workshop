@@ -1,0 +1,31 @@
+{
+  "name": "fraude-sim-<seu-usuario>",
+  "description": "Simulador de Fraude em Reembolsos — inferencia em tempo real",
+  "resources": [
+    {
+      "name": "serving-endpoint",
+      "description": "Modelo de fraude publicado no Lab 02",
+      "serving_endpoint": {
+        "name": "fraude-reembolso-<seu-usuario>",
+        "permission": "CAN_QUERY"
+      }
+    },
+    {
+      "name": "sql-warehouse",
+      "description": "Warehouse serverless para as listas de apoio e o fallback",
+      "sql_warehouse": {
+        "id": "<warehouse_id>",
+        "permission": "CAN_USE"
+      }
+    },
+    {
+      "name": "lakebase",
+      "description": "Store online de features agregadas (Lab 03)",
+      "database": {
+        "instance_name": "lakebase-<seu-usuario>",
+        "database_name": "databricks_postgres",
+        "permission": "CAN_CONNECT_AND_CREATE"
+      }
+    }
+  ]
+}

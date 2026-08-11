@@ -1,0 +1,49 @@
+command:
+  - "bash"
+  - "-c"
+  - "streamlit run app.py --server.port ${DATABRICKS_APP_PORT:-8000} --server.address 0.0.0.0 --server.headless true"
+
+# =====================================================================
+# 👉 ALTERE os valores abaixo para os SEUS recursos (Labs 01-03).
+#    Troque <seu_usuario> pelo seu schema (parte antes do @, com _ no
+#    lugar de . e -).  Ex.: gabriel.rangel@databricks.com -> gabriel_rangel
+#    Instancias e endpoints usam "-": gabriel-rangel
+# =====================================================================
+env:
+  # --- Model Serving (Lab 02) ---
+  # Vem do resource "Serving endpoint" adicionado na UI do app.
+  - name: SERVING_ENDPOINT_NAME
+    valueFrom: serving-endpoint
+
+  # --- SQL Warehouse (listas de apoio + fallback) ---
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql-warehouse
+
+  # --- Lakebase (Lab 03) ---
+  - name: LAKEBASE_INSTANCE
+    value: "lakebase-<seu-usuario>"          # 👉 ALTERE (instancia do Lab 03)
+  - name: PGDATABASE
+    value: "databricks_postgres"
+  - name: PG_SCHEMA
+    value: "<seu_usuario>"                   # 👉 ALTERE (schema no Postgres = schema do UC)
+
+  # Ligue/desligue o lookup no Lakebase. Com "false", o app le os mesmos
+  # agregados via SQL Warehouse — permite rodar sem ter feito o Lab 03.
+  - name: USE_LAKEBASE
+    value: "true"
+
+  # --- Unity Catalog ---
+  - name: CATALOGO
+    value: "workshop_databricks"
+  - name: SCHEMA_UC
+    value: "<seu_usuario>"                   # 👉 ALTERE
+
+  # --- Decisao de negocio ---
+  # Threshold homologado no Lab 01 (tag da versao do modelo).
+  - name: THRESHOLD
+    value: "0.30"                            # 👉 ALTERE se o seu Lab 01 deu outro
+
+  # Timeout da chamada ao endpoint, em segundos. Generoso de proposito: com
+  # `scale to zero` ligado, a primeira chamada sobe o container (cold start).
+  - name: TIMEOUT_INFERENCIA
+    value: "300"

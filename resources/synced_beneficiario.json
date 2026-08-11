@@ -1,0 +1,13 @@
+{
+  "name": "workshop_databricks.<seu_usuario>.online_features_beneficiario",
+  "database_instance_name": "lakebase-<seu-usuario>",
+  "logical_database_name": "databricks_postgres",
+  "spec": {
+    "source_table_full_name": "workshop_databricks.<seu_usuario>.gold_features_beneficiario",
+    "primary_key_columns": [
+      "beneficiario_id"
+    ],
+    "scheduling_policy": "SNAPSHOT",
+    "create_database_objects_if_missing": true
+  }
+}
