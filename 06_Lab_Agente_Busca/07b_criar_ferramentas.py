@@ -19,10 +19,10 @@
 # MAGIC              v
 # MAGIC   [LLM decide QUAIS ferramentas chamar e em que ORDEM]
 # MAGIC              |
-# MAGIC              +--> buscar_beneficiario_por_cpf(cpf)
+# MAGIC              +--> buscar_beneficiario(cpf)
 # MAGIC              |      devolve: nome, plano, endereco, LAT, LONG
 # MAGIC              |
-# MAGIC              +--> encontrar_dentistas_proximos(lat, long, especialidade, plano)
+# MAGIC              +--> encontrar_dentistas(lat, long, especialidade, plano)
 # MAGIC              |      devolve: lista ordenada por distancia
 # MAGIC              |
 # MAGIC              +--> listar_especialidades()   (quando o pedido e ambiguo)
@@ -39,8 +39,8 @@
 # MAGIC
 # MAGIC | # | Ferramenta | Entrada | Devolve |
 # MAGIC |---|---|---|---|
-# MAGIC | 1 | `buscar_beneficiario_por_cpf` | CPF | nome, plano, endereco, lat, long |
-# MAGIC | 2 | `encontrar_dentistas_proximos` | lat, long, especialidade, plano, raio | ate 5 credenciados por distancia |
+# MAGIC | 1 | `buscar_beneficiario` | CPF | nome, plano, endereco, lat, long |
+# MAGIC | 2 | `encontrar_dentistas` | lat, long, especialidade, plano, raio | ate 5 credenciados por distancia |
 # MAGIC | 3 | `listar_especialidades` | — | especialidades validas |
 # MAGIC
 # MAGIC > **Pre-requisito:** `07a_dados_geo` executado (as tabelas
@@ -91,7 +91,7 @@ print(f"Beneficiarios: {TB_BENEF}")
 # MAGIC | Comentario | Consequencia |
 # MAGIC |---|---|
 # MAGIC | `COMMENT 'busca'` | o modelo nao sabe se serve; **pode nao chamar** |
-# MAGIC | `COMMENT 'Retorna dentistas CREDENCIADOS proximos a uma coordenada, filtrando por especialidade e plano. Use depois de obter lat/long via buscar_beneficiario_por_cpf.'` | o modelo chama na hora certa, com os argumentos certos |
+# MAGIC | `COMMENT 'Retorna dentistas CREDENCIADOS proximos a uma coordenada, filtrando por especialidade e plano. Use depois de obter lat/long via buscar_beneficiario.'` | o modelo chama na hora certa, com os argumentos certos |
 # MAGIC
 # MAGIC > 💰 **Em GenAI, escrever documentacao deixou de ser boa educacao e passou a ser
 # MAGIC > programacao.** O `COMMENT` nao e comentario — e o codigo que orienta o modelo.
@@ -103,7 +103,7 @@ print(f"Beneficiarios: {TB_BENEF}")
 
 # MAGIC %md
 # MAGIC ---
-# MAGIC ## Ferramenta 1 — `buscar_beneficiario_por_cpf`
+# MAGIC ## Ferramenta 1 — `buscar_beneficiario`
 # MAGIC
 # MAGIC Traduz o CPF em tudo que a busca precisa: **plano** (para filtrar quem aceita) e
 # MAGIC **lat/long** (de onde medir distancia).
@@ -124,19 +124,19 @@ print(f"Beneficiarios: {TB_BENEF}")
 # COMMAND ----------
 
 spark.sql(f"""
-CREATE OR REPLACE FUNCTION {CATALOGO}.{SCHEMA}.buscar_beneficiario_por_cpf(
+CREATE OR REPLACE FUNCTION {CATALOGO}.{SCHEMA}.buscar_beneficiario(
   cpf_beneficiario STRING
     COMMENT 'CPF do beneficiario, somente digitos, sem pontos ou tracos. Fornecido pelo sistema — NUNCA solicite ao usuario.'
 )
 RETURNS TABLE(
   nome       STRING COMMENT 'Nome completo do beneficiario',
-  plano      STRING COMMENT 'Nome do plano contratado. Use este valor como filtro na ferramenta encontrar_dentistas_proximos.',
+  plano      STRING COMMENT 'Nome do plano contratado. Use este valor como filtro na ferramenta encontrar_dentistas.',
   endereco   STRING COMMENT 'Logradouro e numero do beneficiario',
   bairro     STRING COMMENT 'Bairro do beneficiario',
   cidade     STRING COMMENT 'Cidade do beneficiario',
   uf         STRING COMMENT 'Unidade federativa (sigla) do beneficiario',
-  latitude   DOUBLE COMMENT 'Latitude do endereco. Passe para o parametro lat_usuario de encontrar_dentistas_proximos.',
-  longitude  DOUBLE COMMENT 'Longitude do endereco. Passe para o parametro long_usuario de encontrar_dentistas_proximos.',
+  latitude   DOUBLE COMMENT 'Latitude do endereco. Passe para o parametro lat_usuario de encontrar_dentistas.',
+  longitude  DOUBLE COMMENT 'Longitude do endereco. Passe para o parametro long_usuario de encontrar_dentistas.',
   status     STRING COMMENT 'Situacao do contrato: ativo ou cancelado'
 )
 COMMENT 'Retorna os dados cadastrais de um beneficiario da Odontoprev a partir do CPF, incluindo o plano contratado e a latitude/longitude do endereco. Use esta ferramenta PRIMEIRO, antes de buscar dentistas, porque a busca de dentistas exige o plano e as coordenadas que esta funcao devolve. Se nao retornar nenhuma linha, o CPF nao existe na base.'
@@ -147,7 +147,7 @@ RETURN
   LIMIT 1
 """)
 
-print("Ferramenta 1 criada: buscar_beneficiario_por_cpf")
+print("Ferramenta 1 criada: buscar_beneficiario")
 
 # COMMAND ----------
 
@@ -156,17 +156,17 @@ print("Ferramenta 1 criada: buscar_beneficiario_por_cpf")
 
 # COMMAND ----------
 
-spark.sql(f"SELECT * FROM {CATALOGO}.{SCHEMA}.buscar_beneficiario_por_cpf('11111111111')").display()
+spark.sql(f"SELECT * FROM {CATALOGO}.{SCHEMA}.buscar_beneficiario('11111111111')").display()
 
 # COMMAND ----------
 
-spark.sql(f"SELECT * FROM {CATALOGO}.{SCHEMA}.buscar_beneficiario_por_cpf('22222222222')").display()
+spark.sql(f"SELECT * FROM {CATALOGO}.{SCHEMA}.buscar_beneficiario('22222222222')").display()
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ---
-# MAGIC ## Ferramenta 2 — `encontrar_dentistas_proximos`
+# MAGIC ## Ferramenta 2 — `encontrar_dentistas`
 # MAGIC
 # MAGIC O coracao do lab. Recebe coordenada, especialidade, plano e raio; devolve os
 # MAGIC credenciados mais proximos.
@@ -197,15 +197,15 @@ spark.sql(f"SELECT * FROM {CATALOGO}.{SCHEMA}.buscar_beneficiario_por_cpf('22222
 # COMMAND ----------
 
 spark.sql(f"""
-CREATE OR REPLACE FUNCTION {CATALOGO}.{SCHEMA}.encontrar_dentistas_proximos(
+CREATE OR REPLACE FUNCTION {CATALOGO}.{SCHEMA}.encontrar_dentistas(
   lat_usuario DOUBLE
-    COMMENT 'Latitude do beneficiario, obtida na ferramenta buscar_beneficiario_por_cpf.',
+    COMMENT 'Latitude do beneficiario, obtida na ferramenta buscar_beneficiario.',
   long_usuario DOUBLE
-    COMMENT 'Longitude do beneficiario, obtida na ferramenta buscar_beneficiario_por_cpf.',
+    COMMENT 'Longitude do beneficiario, obtida na ferramenta buscar_beneficiario.',
   especialidade_desejada STRING
     COMMENT 'Especialidade odontologica exata. Use listar_especialidades para ver os valores validos. NUNCA deduza a especialidade a partir de sintomas relatados pelo usuario.',
   plano_usuario STRING
-    COMMENT 'Nome do plano do beneficiario, obtido na ferramenta buscar_beneficiario_por_cpf. Filtra apenas dentistas que aceitam esse plano.',
+    COMMENT 'Nome do plano do beneficiario, obtido na ferramenta buscar_beneficiario. Filtra apenas dentistas que aceitam esse plano.',
   raio_km INT DEFAULT 15
     COMMENT 'Raio maximo de busca em quilometros. Padrao 15. Se a busca nao retornar resultados, tente novamente com um raio maior, por exemplo 50.'
 )
@@ -222,7 +222,7 @@ RETURNS TABLE(
   aceita_urgencia BOOLEAN COMMENT 'Indica se o consultorio atende casos de urgencia',
   distancia_km    DOUBLE COMMENT 'Distancia em linha reta, em quilometros, entre o beneficiario e o consultorio'
 )
-COMMENT 'Retorna ate 5 dentistas CREDENCIADOS da rede Odontoprev proximos a uma coordenada, ordenados do mais perto para o mais longe. Filtra apenas dentistas da especialidade indicada que aceitam o plano do beneficiario. Requer latitude, longitude e plano — obtenha-os antes com buscar_beneficiario_por_cpf. IMPORTANTE: se retornar zero linhas, significa que NAO existe dentista credenciado dessa especialidade que aceite esse plano dentro do raio; nesse caso informe o beneficiario e sugira ampliar o raio ou usar reembolso por livre escolha. Esta funcao busca somente rede credenciada, nunca prestadores fora da rede.'
+COMMENT 'Retorna ate 5 dentistas CREDENCIADOS da rede Odontoprev proximos a uma coordenada, ordenados do mais perto para o mais longe. Filtra apenas dentistas da especialidade indicada que aceitam o plano do beneficiario. Requer latitude, longitude e plano — obtenha-os antes com buscar_beneficiario. IMPORTANTE: se retornar zero linhas, significa que NAO existe dentista credenciado dessa especialidade que aceite esse plano dentro do raio; nesse caso informe o beneficiario e sugira ampliar o raio ou usar reembolso por livre escolha. Esta funcao busca somente rede credenciada, nunca prestadores fora da rede.'
 RETURN
   WITH candidatos AS (
     -- Passo 1: filtros baratos primeiro (especialidade, plano, bounding box)
@@ -262,7 +262,7 @@ RETURN
   LIMIT 5
 """)
 
-print("Ferramenta 2 criada: encontrar_dentistas_proximos")
+print("Ferramenta 2 criada: encontrar_dentistas")
 
 # COMMAND ----------
 
@@ -302,10 +302,10 @@ print("Ferramenta 2 criada: encontrar_dentistas_proximos")
 spark.sql(f"""
 CREATE OR REPLACE FUNCTION {CATALOGO}.{SCHEMA}.listar_especialidades()
 RETURNS TABLE(
-  especialidade    STRING COMMENT 'Nome exato da especialidade, como deve ser passado para encontrar_dentistas_proximos',
+  especialidade    STRING COMMENT 'Nome exato da especialidade, como deve ser passado para encontrar_dentistas',
   qtd_credenciados INT    COMMENT 'Quantos dentistas credenciados existem nessa especialidade em toda a rede'
 )
-COMMENT 'Retorna a lista das especialidades odontologicas validas na rede credenciada Odontoprev, com a quantidade de dentistas em cada uma. Use esta ferramenta quando o beneficiario nao disser claramente a especialidade, ou quando descrever apenas sintomas, para apresentar as opcoes disponiveis e pedir que ele escolha. Os valores retornados sao os unicos aceitos pelo parametro especialidade_desejada de encontrar_dentistas_proximos.'
+COMMENT 'Retorna a lista das especialidades odontologicas validas na rede credenciada Odontoprev, com a quantidade de dentistas em cada uma. Use esta ferramenta quando o beneficiario nao disser claramente a especialidade, ou quando descrever apenas sintomas, para apresentar as opcoes disponiveis e pedir que ele escolha. Os valores retornados sao os unicos aceitos pelo parametro especialidade_desejada de encontrar_dentistas.'
 RETURN
   SELECT especialidade, CAST(COUNT(*) AS INT) AS qtd_credenciados
   FROM {TB_REDE}
@@ -338,7 +338,7 @@ spark.sql(f"SELECT * FROM {CATALOGO}.{SCHEMA}.listar_especialidades()").display(
 # COMMAND ----------
 
 ana = spark.sql(
-    f"SELECT * FROM {CATALOGO}.{SCHEMA}.buscar_beneficiario_por_cpf('11111111111')"
+    f"SELECT * FROM {CATALOGO}.{SCHEMA}.buscar_beneficiario('11111111111')"
 ).collect()[0]
 
 print(f"Beneficiaria: {ana['nome']}")
@@ -351,7 +351,7 @@ print(f"Coordenada:   {ana['latitude']}, {ana['longitude']}")
 ESPECIALIDADE_TESTE = "Endodontia"
 
 spark.sql(f"""
-    SELECT * FROM {CATALOGO}.{SCHEMA}.encontrar_dentistas_proximos(
+    SELECT * FROM {CATALOGO}.{SCHEMA}.encontrar_dentistas(
       {ana['latitude']}, {ana['longitude']},
       '{ESPECIALIDADE_TESTE}', '{ana['plano']}', 15
     )
@@ -367,7 +367,7 @@ spark.sql(f"""
 # COMMAND ----------
 
 carlos = spark.sql(
-    f"SELECT * FROM {CATALOGO}.{SCHEMA}.buscar_beneficiario_por_cpf('22222222222')"
+    f"SELECT * FROM {CATALOGO}.{SCHEMA}.buscar_beneficiario('22222222222')"
 ).collect()[0]
 
 print(f"Beneficiario: {carlos['nome']}")
@@ -377,7 +377,7 @@ print()
 
 for raio in (15, 50, 200):
     n = spark.sql(f"""
-        SELECT count(*) AS n FROM {CATALOGO}.{SCHEMA}.encontrar_dentistas_proximos(
+        SELECT count(*) AS n FROM {CATALOGO}.{SCHEMA}.encontrar_dentistas(
           {carlos['latitude']}, {carlos['longitude']},
           '{ESPECIALIDADE_TESTE}', '{carlos['plano']}', {raio}
         )
@@ -432,7 +432,7 @@ for raio in (15, 50, 200):
 
 for esp in ("Endodontia", "Dentista de canal", "Odontologia Geral"):
     n = spark.sql(f"""
-        SELECT count(*) AS n FROM {CATALOGO}.{SCHEMA}.encontrar_dentistas_proximos(
+        SELECT count(*) AS n FROM {CATALOGO}.{SCHEMA}.encontrar_dentistas(
           {ana['latitude']}, {ana['longitude']}, '{esp}', '{ana['plano']}', 15
         )
     """).collect()[0]["n"]
@@ -468,7 +468,7 @@ print("   E por isso que listar_especialidades existe.")
 #
 # spark.sql(f"GRANT USE CATALOG ON CATALOG {CATALOGO} TO `{PRINCIPAL}`")
 # spark.sql(f"GRANT USE SCHEMA ON SCHEMA {CATALOGO}.{SCHEMA} TO `{PRINCIPAL}`")
-# for f in ("buscar_beneficiario_por_cpf", "encontrar_dentistas_proximos",
+# for f in ("buscar_beneficiario", "encontrar_dentistas",
 #           "listar_especialidades"):
 #     spark.sql(f"GRANT EXECUTE ON FUNCTION {CATALOGO}.{SCHEMA}.{f} TO `{PRINCIPAL}`")
 # # A funcao le as tabelas, entao o chamador tambem precisa de SELECT nelas:
@@ -547,7 +547,7 @@ spark.sql(f"SHOW FUNCTIONS IN {CATALOGO}.{SCHEMA} LIKE '*'").display()
 # MAGIC |---|---|
 # MAGIC | **Ferramenta = UC Function** | objeto governado, com `GRANT`, lineage e versao |
 # MAGIC | **O `COMMENT` e a interface** | o LLM le a descricao, nao o corpo. Comentario ruim = ferramenta ignorada |
-# MAGIC | **Comentario que orienta encadeamento** | "obtenha antes com `buscar_beneficiario_por_cpf`" |
+# MAGIC | **Comentario que orienta encadeamento** | "obtenha antes com `buscar_beneficiario`" |
 # MAGIC | **Filtro barato antes de calculo caro** | bounding box antes da haversine |
 # MAGIC | **`LIMIT` e decisao de produto** | o resultado vai para o prompt: 5, nao 50 |
 # MAGIC | **`least(1.0, ...)` no `acos`** | evita `NaN` que sumiria com o dentista mais proximo |

@@ -39,8 +39,8 @@ CATALOGO = "workshop_databricks"
 SCHEMA = nome
 
 FERRAMENTAS = [
-    "buscar_beneficiario_por_cpf",
-    "encontrar_dentistas_proximos",
+    "buscar_beneficiario",
+    "encontrar_dentistas",
     "listar_especialidades",
 ]
 
@@ -64,7 +64,7 @@ print("  BENEFICIARIOS DE TESTE")
 print("=" * 76)
 for cpf in ("11111111111", "22222222222"):
     b = spark.sql(
-        f"SELECT * FROM {CATALOGO}.{SCHEMA}.buscar_beneficiario_por_cpf('{cpf}')"
+        f"SELECT * FROM {CATALOGO}.{SCHEMA}.buscar_beneficiario('{cpf}')"
     ).collect()
     if b:
         b = b[0]
@@ -90,7 +90,7 @@ print("=" * 76)
 # MAGIC
 # MAGIC *Tool calling* nao e prompt: e um contrato. O modelo tem que ser capaz de
 # MAGIC devolver, em vez de texto, um **JSON estruturado** dizendo *"chame
-# MAGIC `encontrar_dentistas_proximos` com estes argumentos"*. Modelos sem esse
+# MAGIC `encontrar_dentistas` com estes argumentos"*. Modelos sem esse
 # MAGIC treinamento nao produzem essa saida de forma confiavel.
 # MAGIC
 # MAGIC > 📄 Doc: https://docs.databricks.com/aws/en/large-language-models/ai-playground
@@ -105,7 +105,7 @@ print("=" * 76)
 # MAGIC
 # MAGIC 1. Clique em **Tools** > **+ Add tool**.
 # MAGIC 2. Escolha **UC Function**.
-# MAGIC 3. Cole o nome completo, ex.: `workshop_databricks.<seu_schema>.buscar_beneficiario_por_cpf`
+# MAGIC 3. Cole o nome completo, ex.: `workshop_databricks.<seu_schema>.buscar_beneficiario`
 # MAGIC    &nbsp; 👉 **ALTERE** para o **seu** schema.
 # MAGIC 4. Confirme.
 # MAGIC
@@ -138,13 +138,13 @@ print("=" * 76)
 # MAGIC Voce e o assistente virtual da Odontoprev e ajuda beneficiarios a encontrar
 # MAGIC dentistas da rede credenciada.
 # MAGIC
-# MAGIC O CPF do beneficiario logado e: 11111111111
 # MAGIC
 # MAGIC ## Como atender
 # MAGIC
-# MAGIC 1. Chame buscar_beneficiario_por_cpf com o CPF acima para obter nome, plano,
+# MAGIC 1. Pergunta o CPF do beneficiario e use a ferramenta buscar_beneficiario
+# MAGIC 1. Chame buscar_beneficiario com o CPF para obter nome, plano,
 # MAGIC    latitude e longitude. Faca isso ANTES de qualquer busca de dentista.
-# MAGIC 2. Chame encontrar_dentistas_proximos passando a latitude, a longitude e o
+# MAGIC 2. Chame encontrar_dentistas passando a latitude, a longitude e o
 # MAGIC    plano obtidos no passo 1, mais a especialidade desejada.
 # MAGIC 3. Apresente os resultados em tabela, ordenados por distancia, com: nome,
 # MAGIC    especialidade, endereco, bairro, distancia em km, telefone e nota.
@@ -162,8 +162,7 @@ print("=" * 76)
 # MAGIC    especialidade exige avaliacao clinica e sugira uma consulta em Clinica
 # MAGIC    Geral, que e a porta de entrada.
 # MAGIC
-# MAGIC 2. NUNCA solicite o CPF ao beneficiario. Ele vem do sistema. Nunca repita,
-# MAGIC    confirme ou exiba o numero do CPF na resposta.
+# MAGIC 2. Nunca repita, confirme ou exiba o numero do CPF na resposta.
 # MAGIC
 # MAGIC 3. NUNCA invente dentista, endereco, telefone ou distancia. Use SOMENTE o que
 # MAGIC    as ferramentas retornarem. Se nao chamou a ferramenta, voce nao sabe.
@@ -193,21 +192,6 @@ print("=" * 76)
 # MAGIC nome quando souber. Nao use jargao interno (glosa, sinistro, TUSS).
 # MAGIC ```
 # MAGIC
-# MAGIC ### 💡 Sobre o CPF fixo no prompt
-# MAGIC
-# MAGIC Note o que fizemos: o CPF esta **no system prompt**, nao vem do usuario. Isso e
-# MAGIC de proposito e vale discutir.
-# MAGIC
-# MAGIC Num app real, o beneficiario **ja esta autenticado** — a sessao sabe quem ele e.
-# MAGIC Pedir CPF no chat seria (a) ruim de UX e (b) um risco: qualquer um digitaria o
-# MAGIC CPF de outra pessoa e veria o plano e o endereco dela.
-# MAGIC
-# MAGIC > ⚠️ **Limitacao honesta deste lab:** com o CPF no prompt, o Playground
-# MAGIC > **nao** impede que alguem digite outro CPF no chat e o modelo o use. O
-# MAGIC > controle de verdade nao mora no prompt — mora na **camada de identidade**.
-# MAGIC > Em producao, a ferramenta receberia o CPF da sessao autenticada (ou usaria
-# MAGIC > `current_user()` numa view com filtro de linha), nunca do texto da conversa.
-# MAGIC > **Prompt e orientacao, nao seguranca.**
 
 # COMMAND ----------
 
