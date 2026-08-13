@@ -33,6 +33,10 @@
 
 # COMMAND ----------
 
+# MAGIC %run ./00_configuracao_catalogo
+
+# COMMAND ----------
+
 usuario = spark.sql("SELECT current_user()").collect()[0][0]
 nome = usuario.split("@")[0].replace(".", "_").replace("-", "_").lower()
 CATALOGO = "workshop_databricks"
